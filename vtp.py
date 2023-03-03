@@ -15,6 +15,13 @@ class ArrayV(ctypes.Structure):
                 ('cap', ctypes.c_int32),
                 ('flags', ctypes.c_int32),
                ]
+    
+class StringV(ctypes.Structure):
+    _fields_ = [
+                ('str', ctypes.POINTER(ctypes.c_uint8)),
+                ('len', ctypes.c_int32),
+                ('is_lit', ctypes.c_int32),
+               ]
 
 class wrapper:
     i8 = ctypes.c_int8
@@ -24,6 +31,7 @@ class wrapper:
     f32 = ctypes.c_float
     f64 = ctypes.c_double
     bool = ctypes.c_bool
+    str = ...
     retyp = {ctypes.c_int8: np.int8, ctypes.c_int16: np.int16, ctypes.c_int32: np.int32,
               ctypes.c_int64: np.int64, ctypes.c_float: np.float32, ctypes.c_double: np.float64,
               ctypes.c_bool: np.bool8}
@@ -72,15 +80,40 @@ class wrapper:
                     shape[0] = np.ctypeslib.as_array(data.contents)
                 return shape[0]
 
+    class _string:
+            def __init__(self):
+                ...
+            def __call__(self, str):
+                strv = StringV()
+                strv.len = (ctypes.c_int32)(len(str))
+                strv.is_lit = (ctypes.c_int32)(0)
+
+                data = (ctypes.c_uint8 * len(str))(*str.encode())
+                strv.str = ctypes.cast(data, ctypes.POINTER(ctypes.c_uint8))
+
+                return strv
             
+            def __mul__(self, y):
+                def multiply(*arg):
+                    data = [None] * y
+                    for idx in range(y):
+                        data[idx] = wrapper._string(arg[idx])
+                    return (StringV * y)(*data)
+                return multiply
+            
+            def out(self, res):
+                data = ctypes.cast(res.str, ctypes.POINTER(ctypes.c_uint8 * res.len))[0]
+                return "".join(map(chr, [*data]))
+            
+    str = _string()
 
     def __init__(self, fn, argtypes, restype):
         self.fn = fn
         self.argslen = len(argtypes)
         self.argtypes = [(arg) for arg in argtypes]
         self.restype = restype
-        self.fn.argtypes = [ArrayV if isinstance(argtype, wrapper.Array) else argtype for argtype in argtypes]
-        self.fn.restype = ArrayV if isinstance(self.restype, wrapper.Array) else self.restype
+        self.fn.argtypes = [self._filter(argtype) for argtype in argtypes]
+        self.fn.restype = self._filter(self.restype)
 
     def __call__(self, *args):
         if self.argslen != len(args):
@@ -89,7 +122,16 @@ class wrapper:
 
         out = self.fn(*args)
 
-        if isinstance(self.restype, wrapper.Array):
-            out = self.restype.out(out)
+        out = self._unzip(out)
 
+        return out
+    
+    def _filter(self, type):
+        if isinstance(type, wrapper.Array): return ArrayV
+        if isinstance(type, wrapper._string): return StringV
+        return type
+
+    def _unzip(self, out):
+        if isinstance(self.restype, wrapper.Array) or isinstance(self.restype, wrapper._string):
+           return self.restype.out(out)
         return out
