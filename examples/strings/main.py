@@ -9,8 +9,8 @@ from vtp import compile
 lib = compile("./lib.v")
 
 #define arguments types and result type
-lib.my_fn = wp(lib.my_fn, [wp.str, wp.i32], wp.str)
+lib.my_fn = wp(lib.my_fn, [wp.str], wp.str)
 
-out = lib.my_fn("abcd", 5)
+out = lib.my_fn("abcd")
 
 print(out)

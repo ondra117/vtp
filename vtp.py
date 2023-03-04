@@ -5,7 +5,9 @@ import numpy as np
 #compile and load V file
 def compile(v_path: str):
     os.system(f"v -d no_backtrace -shared {v_path}")
-    return ctypes.CDLL(v_path.replace(".v", ".dll"))
+    lib = ctypes.CDLL(v_path.replace(".v", ".dll"))
+    lib._initialise()
+    return lib
 
 #structure represent V arrays
 class ArrayV(ctypes.Structure):
