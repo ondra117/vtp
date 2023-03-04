@@ -2,10 +2,12 @@ import ctypes
 import os
 import numpy as np
 
+#compile and load V file
 def compile(v_path: str):
     os.system(f"v -d no_backtrace -shared {v_path}")
     return ctypes.CDLL(v_path.replace(".v", ".dll"))
 
+#structure represent V arrays
 class ArrayV(ctypes.Structure):
     _fields_ = [
                 ('element_size', ctypes.c_int32),
@@ -15,7 +17,8 @@ class ArrayV(ctypes.Structure):
                 ('cap', ctypes.c_int32),
                 ('flags', ctypes.c_int32),
                ]
-    
+
+#structure represent V strings
 class StringV(ctypes.Structure):
     _fields_ = [
                 ('str', ctypes.POINTER(ctypes.c_uint8)),
@@ -23,7 +26,9 @@ class StringV(ctypes.Structure):
                 ('is_lit', ctypes.c_int32),
                ]
 
+#class witch wrap V function
 class wrapper:
+    #define types
     i8 = ctypes.c_int8
     i16 = ctypes.c_int16
     i32 = ctypes.c_int32
@@ -35,10 +40,13 @@ class wrapper:
     retyp = {ctypes.c_int8: np.int8, ctypes.c_int16: np.int16, ctypes.c_int32: np.int32,
               ctypes.c_int64: np.int64, ctypes.c_float: np.float32, ctypes.c_double: np.float64,
               ctypes.c_bool: np.bool8}
+    
+    #class stranslate np.ndarray to ArrayV structure and transpate ArrayV structure to np.ndarray
     class Array:
         def __init__(self, type):
-            self.type = type
+            self.type = type #type of array elements (it can also be an Array again)
 
+        #translate np.ndarray to ArrayV
         def __call__(self, arg):
             arrv = ArrayV()
             arrv.element_size = ctypes.sizeof(self.type) if not isinstance(self.type, wrapper.Array) else (ctypes.c_int32)(32)
@@ -53,6 +61,7 @@ class wrapper:
 
             return arrv
 
+        #ensures function for array of arrays ...
         def __mul__(self, y):
             def multiply(*arg):
                 data = [None] * y
@@ -61,6 +70,7 @@ class wrapper:
                 return (ArrayV * y)(*data)
             return multiply
         
+        #translate ArrayV to np.ndarray
         def out(self, res, shape=[None, [], True], idxs=[]):
             if shape[2]:
                 shape[1].append(res.len)
@@ -80,9 +90,12 @@ class wrapper:
                     shape[0] = np.ctypeslib.as_array(data.contents)
                 return shape[0]
 
+    #class stranslate python string to StringV structure and transpate StringV structure to python string
     class _string:
             def __init__(self):
                 ...
+            
+            #trnsalate python string to StringV
             def __call__(self, str):
                 strv = StringV()
                 strv.len = (ctypes.c_int32)(len(str))
@@ -93,6 +106,7 @@ class wrapper:
 
                 return strv
             
+            #ensures function for array of strings
             def __mul__(self, y):
                 def multiply(*arg):
                     data = [None] * y
@@ -101,12 +115,14 @@ class wrapper:
                     return (StringV * y)(*data)
                 return multiply
             
+            #translate StringV to python string
             def out(self, res):
                 data = ctypes.cast(res.str, ctypes.POINTER(ctypes.c_uint8 * res.len))[0]
                 return "".join(map(chr, [*data]))
             
     str = _string()
 
+    #define V function, argument types and result types 
     def __init__(self, fn, argtypes, restype):
         self.fn = fn
         self.argslen = len(argtypes)
@@ -115,6 +131,7 @@ class wrapper:
         self.fn.argtypes = [self._filter(argtype) for argtype in argtypes]
         self.fn.restype = self._filter(self.restype)
 
+    #translate inputs to V format
     def __call__(self, *args):
         if self.argslen != len(args):
             ...
@@ -126,11 +143,13 @@ class wrapper:
 
         return out
     
+    #ensure correct set for argtypes/restype
     def _filter(self, type):
         if isinstance(type, wrapper.Array): return ArrayV
         if isinstance(type, wrapper._string): return StringV
         return type
 
+    #ensure translate structures to python form
     def _unzip(self, out):
         if isinstance(self.restype, wrapper.Array) or isinstance(self.restype, wrapper._string):
            return self.restype.out(out)
