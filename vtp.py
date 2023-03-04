@@ -2,10 +2,14 @@ import ctypes
 import os
 import numpy as np
 
-#compile and load V file
+#compile V file and load dll file
 def compile(v_path: str):
     os.system(f"v -d no_backtrace -shared {v_path}")
-    lib = ctypes.CDLL(v_path.replace(".v", ".dll"))
+    return load(v_path.replace(".v", ".dll"))
+
+#load dll file
+def load(dll_pah: str):
+    lib = ctypes.CDLL(dll_pah)
     lib._initialise()
     return lib
 
