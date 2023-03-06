@@ -2,6 +2,11 @@ import ctypes
 import os
 import numpy as np
 
+"""
+this is a library to easily run vlang functions from python,
+supports basic types including (int8-64, float32, float64, bool, string, arrays)
+"""
+
 #compile V file and load dll file
 def compile(v_path: str):
     os.system(f"v -d no_backtrace -shared {v_path}")
